@@ -1,4 +1,5 @@
 import pymel.core as pm
+import pymel.api as pma
 import json
 
 
@@ -60,12 +61,10 @@ def matchFkIk(metaNode=None, *args):
     if not pm.getAttr(state):
         pm.setAttr(state, 1)
         pm.matchTransform(ikControl, fkChain[2], rot=1, pos=1)
-
-        arm01Vec = [pm.xform(fkChain[1], t=1, ws=1, q=1)[i] - pm.xform(fkChain[2], t=1, ws=1, q=1)[i] for i in range(3)]
-        arm02Vec = [pm.xform(fkChain[1], t=1, ws=1, q=1)[i] - pm.xform(fkChain[0], t=1, ws=1, q=1)[i] for i in range(3)]
-
-        pm.xform(poleVector, t=[pm.xform(fkChain[1], t=1, q=1, ws=1)[i] + arm01Vec[i] * .75 + arm02Vec[i] * .75 for i in range(3)], ws=1)
-
+        # Pole vector
+        poleLoc = getPoleVector(fkChain[0], fkChain[1], fkChain[2])
+        pm.matchTransform(poleVector, poleLoc)
+        pm.delete(poleLoc)
         pm.select(cl=1)
     else:
         # If in IK -> match FK to IK and switch to FK
@@ -214,3 +213,31 @@ def set_fkik_blend(value):
     switch_plug = mod.state.listConnections(d=1, plugs=True)[0]
 
     switch_plug.set(value)
+
+
+def get_fkik_state(ctl):
+    metaNode = pm.listConnections(ctl + ".mp")[0]
+    fkikAttr = pm.listConnections(metaNode + ".state", plugs=True)[0]
+    return fkikAttr.get()
+
+
+def getPoleVector(rootJnt, midJnt, endJnt):
+    poleLocator = pm.spaceLocator(n="poleLocator")
+    rootJointVec = rootJnt.getTranslation(space="world")  # type:pma.MVector
+    midJointVec = midJnt.getTranslation(space="world")  # type:pma.MVector
+    endJointVec = endJnt.getTranslation(space="world")  # type:pma.MVector
+
+    # Get projection vector
+    line = (endJointVec - rootJointVec)
+    closestPoint = (midJointVec - rootJointVec)
+    scaleValue = (line * closestPoint) / (line * line)
+    projectVec = line * scaleValue + rootJointVec
+
+    # Get chain length
+    rootToMidLen = (midJointVec - rootJointVec).length()
+    midToEndLen = (endJointVec - midJointVec).length()
+    totalLen = rootToMidLen + midToEndLen
+
+    poleVecPosition = (midJointVec - projectVec).normal() * totalLen + midJointVec
+    poleLocator.translate.set(poleVecPosition)
+    return poleLocator

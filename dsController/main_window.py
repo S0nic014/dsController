@@ -5,6 +5,7 @@ from PySide2 import QtWidgets
 from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
 from shiboken2 import getCppPointer
 from dsController import rigFn
+reload(rigFn)
 
 
 class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QWidget):
@@ -90,6 +91,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QWidget):
     def create_connections(self):
         self.fkik_spinbox.valueChanged.connect(rigFn.set_fkik_blend)
         self.fkik_switch_btn.clicked.connect(lambda: rigFn.switch_fkik(matching=self.fkik_match_checkbox.isChecked()))
+        self.fkik_switch_btn.clicked.connect(self.update_ui_options)
         self.space_combo_box.currentIndexChanged.connect(rigFn.switch_space)
         self.asset_bind_pose_btn.clicked.connect(self.asset_bind_pose)
         self.ctl_bind_post_btn.clicked.connect(self.ctl_bind_pose)
@@ -104,8 +106,15 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QWidget):
             return
         ctl = sel[-1]
         self.shortcuts_grp.setEnabled(True)
-        self.fkik_grp.setEnabled(rigFn.isIKFKLimb(ctl))
         self.asset_bind_pose_btn.setEnabled(rigFn.isMainControl(ctl))
+        # FKIK
+        if rigFn.isIKFKLimb(ctl):
+            fkik_state = rigFn.get_fkik_state(ctl)
+            self.fkik_grp.setEnabled(True)
+            self.fkik_spinbox.setValue(fkik_state)
+        else:
+            self.fkik_grp.setEnabled(False)
+
         if ctl.hasAttr("space"):
             spaces = sorted(ctl.space.getEnums().items())
             space_names = [pair[0] for pair in spaces]
