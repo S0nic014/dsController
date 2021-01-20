@@ -1,4 +1,5 @@
 import pymel.core as pm
+from pymel.core import nodetypes
 import pymel.api as pma
 import json
 
@@ -196,13 +197,26 @@ def switch_fkik(matching=False):
         switch_plug.set(state)
 
 
-def switch_space(index):
+def switch_space(index, matching=True, keyframe=False, keyframe_offset=-1):
     sel = pm.ls(sl=1)
-    if not sel:
+    if not sel or index < 0:
         return
-    ctl = sel[-1]
-    if ctl.hasAttr("space"):
-        ctl.space.set(index)
+    ctl = sel[-1]  # type: nodetypes.Transform
+    if not ctl.hasAttr("space"):
+        pm.error("Missing space attr on {0}".format(ctl))
+        return
+
+    # Set keyframe before switch
+    if matching and keyframe:
+        ctl.space.setKey(t=pm.currentTime() + keyframe_offset)
+
+    old_mtx = ctl.getMatrix(worldSpace=True)
+    ctl.space.set(index)
+    # Apply saved matrix and create keyframe
+    if matching:
+        ctl.setMatrix(old_mtx, worldSpace=True)
+        if keyframe:
+            ctl.space.setKey(t=pm.currentTime())
 
 
 def set_fkik_blend(value):

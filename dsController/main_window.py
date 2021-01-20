@@ -33,8 +33,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         self.__class__.UI_INSTANC = self
         self.setObjectName(self.__class__.UI_NAME)
         self.setWindowTitle(self.WINDOW_TITLE)
-        self.setMinimumSize(380, 130)
-        self.setMaximumHeight(130)
+        self.setMinimumSize(380, 160)
 
         workspaceControlName = "{0}WorkspaceControl".format(self.UI_NAME)
 
@@ -47,6 +46,7 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         self.create_widgets()
         self.create_layouts()
         self.create_connections()
+        self.set_default_states()
         self.update_ui_options()
         self.create_script_job()
 
@@ -58,10 +58,20 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         self.fkik_spinbox.setMinimum(0.0)
         self.fkik_spinbox.setSingleStep(0.1)
         self.fkik_switch_btn = QtWidgets.QPushButton("Switch")
-        self.fkik_match_checkbox = QtWidgets.QCheckBox("Match")
+        self.fkik_switch_btn.setMinimumWidth(80)
+        self.fkik_match_checkbox = QtWidgets.QCheckBox("Matching")
+
+        # Space
+        self.space_grp = QtWidgets.QGroupBox("Space")
+        self.space_combo_box = QtWidgets.QComboBox()
+        self.space_match_checkbox = QtWidgets.QCheckBox("Matching")
+        self.space_create_keyframe = QtWidgets.QCheckBox("Create keyframe")
+        self.space_keyframe_offset = QtWidgets.QSpinBox()
+        self.space_keyframe_offset.setMinimum(-1000)
+        self.space_keyframe_offset.setMaximum(1000)
+
         # Shortcuts
         self.shortcuts_grp = QtWidgets.QGroupBox("Shortcuts")
-        self.space_combo_box = QtWidgets.QComboBox()
         self.ctl_bind_post_btn = QtWidgets.QPushButton("Control bind pose")
         self.asset_bind_pose_btn = QtWidgets.QPushButton("Asset bind pose")
 
@@ -75,15 +85,25 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         self.fkik_layout.addStretch()
         self.fkik_grp.setLayout(self.fkik_layout)
 
+        self.space_layout = QtWidgets.QHBoxLayout()
+        self.space_layout.setContentsMargins(2, 2, 2, 2)
+        self.space_layout.addWidget(self.space_combo_box)
+        self.space_layout.addWidget(self.space_match_checkbox)
+        self.space_layout.addWidget(self.space_create_keyframe)
+        self.space_layout.addWidget(self.space_keyframe_offset)
+        self.space_layout.addStretch()
+        self.space_grp.setLayout(self.space_layout)
+
         self.shortcuts_layout = QtWidgets.QHBoxLayout()
-        self.shortcuts_layout.addWidget(QtWidgets.QLabel("Space:"))
-        self.shortcuts_layout.addWidget(self.space_combo_box)
+        self.shortcuts_layout.setContentsMargins(2, 2, 2, 2)
         self.shortcuts_layout.addWidget(self.ctl_bind_post_btn)
         self.shortcuts_layout.addWidget(self.asset_bind_pose_btn)
         self.shortcuts_grp.setLayout(self.shortcuts_layout)
 
         self.main_layout = QtWidgets.QVBoxLayout()
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.addWidget(self.fkik_grp)
+        self.main_layout.addWidget(self.space_grp)
         self.main_layout.addWidget(self.shortcuts_grp)
         self.main_layout.addStretch()
         self.setLayout(self.main_layout)
@@ -92,18 +112,32 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         self.fkik_spinbox.valueChanged.connect(rigFn.set_fkik_blend)
         self.fkik_switch_btn.clicked.connect(lambda: rigFn.switch_fkik(matching=self.fkik_match_checkbox.isChecked()))
         self.fkik_switch_btn.clicked.connect(self.update_ui_options)
-        self.space_combo_box.currentIndexChanged.connect(rigFn.switch_space)
+        self.space_combo_box.currentIndexChanged.connect(lambda index: rigFn.switch_space(index,
+                                                                                          self.space_match_checkbox.isChecked(),
+                                                                                          self.space_create_keyframe.isChecked(),
+                                                                                          self.space_keyframe_offset.value()))
+        self.space_match_checkbox.toggled.connect(self.space_create_keyframe.setEnabled)
+        self.space_create_keyframe.toggled.connect(self.space_keyframe_offset.setEnabled)
         self.asset_bind_pose_btn.clicked.connect(self.asset_bind_pose)
         self.ctl_bind_post_btn.clicked.connect(self.ctl_bind_pose)
 
+    def set_default_states(self):
+        self.fkik_match_checkbox.setChecked(True)
+        self.space_match_checkbox.setChecked(True)
+        self.space_create_keyframe.setChecked(False)
+        self.space_keyframe_offset.setEnabled(False)
+        self.space_keyframe_offset.setValue(-1)
+
     def update_ui_options(self):
-        if self.isHidden():
-            return
         sel = pm.ls(sl=1)
-        if not sel:
+        if not sel or not rigFn.isController(sel[-1]):
             self.fkik_grp.setEnabled(False)
             self.shortcuts_grp.setEnabled(False)
             return
+
+        self.space_combo_box.blockSignals(True)
+        self.fkik_spinbox.blockSignals(True)
+
         ctl = sel[-1]
         self.shortcuts_grp.setEnabled(True)
         self.asset_bind_pose_btn.setEnabled(rigFn.isMainControl(ctl))
@@ -116,16 +150,21 @@ class MainWindow(MayaQWidgetDockableMixin, QtWidgets.QWidget):
             self.fkik_grp.setEnabled(False)
 
         if ctl.hasAttr("space"):
-            spaces = sorted(ctl.space.getEnums().items())
+            spaces = ctl.space.getEnums().items()
+            spaces = sorted(spaces, key=lambda pair: pair[1])
             space_names = [pair[0] for pair in spaces]
-            current_space = ctl.space.get(asString=1)
+            current_space = ctl.space.get()
             self.space_combo_box.clear()
             self.space_combo_box.addItems(space_names)
-            self.space_combo_box.setCurrentText(current_space)
+            self.space_combo_box.setCurrentIndex(current_space)
             self.space_combo_box.setEnabled(True)
+            self.space_combo_box.blockSignals(False)
         else:
             self.space_combo_box.clear()
             self.space_combo_box.setEnabled(False)
+
+        self.space_combo_box.blockSignals(False)
+        self.fkik_spinbox.blockSignals(False)
 
     def create_script_job(self):
         if not self.SCRIPT_JOB:
