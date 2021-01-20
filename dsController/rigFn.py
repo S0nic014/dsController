@@ -66,13 +66,13 @@ def matchFkIk(metaNode=None, *args):
         poleLoc = getPoleVector(fkChain[0], fkChain[1], fkChain[2])
         pm.matchTransform(poleVector, poleLoc)
         pm.delete(poleLoc)
-        pm.select(cl=1)
+        pm.select(ikControl, r=1)
     else:
         # If in IK -> match FK to IK and switch to FK
         pm.setAttr(state, 0)
         for ikJnt, fkCtl in zip(ikChain, fkControls):
             pm.matchTransform(fkCtl, ikJnt, rot=1)
-        pm.select(cl=1)
+        pm.select(fkControls[-1], r=1)
 
 
 def getLimbFkControls(metaNode, *args):
