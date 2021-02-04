@@ -56,12 +56,13 @@ def matchFkIk(metaNode=None, *args):
     ikControl = pm.listConnections(metaNode + ".IK")[0]
     poleVector = pm.listConnections(metaNode + ".poleVector")
     state = pm.listConnections(metaNode + ".state", plugs=True)[0]
+    helper = metaNode.matchingHelper.listConnections(d=1)[0]
 
     # SWITCHING
     # If in FK -> match IK to FK and switch to IK
     if not pm.getAttr(state):
         pm.setAttr(state, 1)
-        pm.matchTransform(ikControl, fkChain[2], rot=1, pos=1)
+        pm.matchTransform(ikControl, helper)
         # Pole vector
         poleLoc = getPoleVector(fkChain[0], fkChain[1], fkChain[2])
         pm.matchTransform(poleVector, poleLoc)
