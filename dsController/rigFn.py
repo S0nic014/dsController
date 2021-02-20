@@ -51,8 +51,7 @@ def matchFkIk(metaNode=None, *args):
 
     # Get controls and joint chains
     fkControls = getLimbFkControls(metaNode)
-    ikChain = getJointChain(pm.getAttr(metaNode + ".ChainIK"))
-    fkChain = getJointChain(pm.getAttr(metaNode + ".ChainFK"))
+    ctlChain = pm.listConnections(metaNode.ctlChain)
     ikControl = pm.listConnections(metaNode + ".IK")[0]
     poleVector = pm.listConnections(metaNode + ".poleVector")
     state = pm.listConnections(metaNode + ".state", plugs=True)[0]
@@ -61,19 +60,19 @@ def matchFkIk(metaNode=None, *args):
     # SWITCHING
     # If in FK -> match IK to FK and switch to IK
     if not pm.getAttr(state):
-        pm.setAttr(state, 1)
         pm.matchTransform(ikControl, helper)
-        # Pole vector
-        poleLoc = getPoleVector(fkChain[0], fkChain[1], fkChain[2])
+        poleLoc = getPoleVector(fkControls[0], fkControls[1], fkControls[2])
         pm.matchTransform(poleVector, poleLoc)
         pm.delete(poleLoc)
         pm.select(ikControl, r=1)
+        pm.setAttr(state, 1)
     else:
         # If in IK -> match FK to IK and switch to FK
-        pm.setAttr(state, 0)
-        for ikJnt, fkCtl in zip(ikChain, fkControls):
-            pm.matchTransform(fkCtl, ikJnt, rot=1)
+        for ctlJnt, fkCtl in zip(ctlChain, fkControls):
+            pm.matchTransform(fkCtl, ctlJnt, rot=1)
+            print(fkCtl, ctlJnt)
         pm.select(fkControls[-1], r=1)
+        pm.setAttr(state, 0)
 
 
 def getLimbFkControls(metaNode, *args):
