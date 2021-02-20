@@ -70,7 +70,6 @@ def matchFkIk(metaNode=None, *args):
         # If in IK -> match FK to IK and switch to FK
         for ctlJnt, fkCtl in zip(ctlChain, fkControls):
             pm.matchTransform(fkCtl, ctlJnt, rot=1)
-            print(fkCtl, ctlJnt)
         pm.select(fkControls[-1], r=1)
         pm.setAttr(state, 0)
 
